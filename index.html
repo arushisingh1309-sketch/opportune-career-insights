@@ -1,0 +1,732 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OpporTune | Career Decision Intelligence</title>
+    <!-- React & Babel -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Inter', 'Poppins', 'sans-serif'] },
+                    colors: {
+                        compass: '#3B82F6', // Blue
+                        roadmap: '#8B5CF6', // Purple
+                        radar: '#EF4444',   // Red
+                        vault: '#10B981',   // Green
+                        analyzer: '#F97316' // Orange
+                    },
+                    animation: {
+                        'ripple': 'ripple 1.5s infinite',
+                        'glow': 'glow 2s ease-in-out infinite alternate'
+                    },
+                    keyframes: {
+                        ripple: {
+                            '0%': { boxShadow: '0 0 0 0 rgba(139, 92, 246, 0.4)' },
+                            '100%': { boxShadow: '0 0 0 25px rgba(139, 92, 246, 0)' }
+                        },
+                        glow: {
+                            '0%': { filter: 'drop-shadow(0 0 5px rgba(139, 92, 246, 0.5))' },
+                            '100%': { filter: 'drop-shadow(0 0 15px rgba(139, 92, 246, 0.9))' }
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Poppins:wght@500;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; background-color: #F8FAFC; color: #0F172A; overflow-x: hidden; }
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        
+        /* Node Animations */
+        .roadmap-node { transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+        .node-hovered { transform: scale(1.15); z-index: 50; background: white; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04); }
+        .node-pushed-left { transform: translateX(-15px) scale(0.95); opacity: 0.7; }
+        .node-pushed-right { transform: translateX(15px) scale(0.95); opacity: 0.7; }
+        .node-pushed-up { transform: translateY(-15px) scale(0.95); opacity: 0.7; }
+        .node-pushed-down { transform: translateY(15px) scale(0.95); opacity: 0.7; }
+        .node-faded { opacity: 0.4; filter: grayscale(50%); }
+
+        /* SVG Path Animation */
+        .path-line { stroke-dasharray: 1000; stroke-dashoffset: 1000; animation: dash 3s linear forwards; }
+        @keyframes dash { to { stroke-dashoffset: 0; } }
+
+        /* Custom Chart Bars */
+        .chart-bar { transition: height 1s ease-out; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        // Icons (Inline SVG to avoid external dependency issues)
+        const Icons = {
+            Compass: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>,
+            Map: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"></path></svg>,
+            Radar: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>,
+            Vault: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>,
+            Analyzer: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>,
+            Clock: () => <svg className="w-4 h-4 mr-1 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>,
+            X: () => <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+        };
+
+        const App = () => {
+            const [currentView, setCurrentView] = useState('home');
+            const[sidePanel, setSidePanel] = useState(null); // { type: 'exam' | 'university', data: {} }
+
+            const navItems =[
+                { id: 'compass', name: 'Career Compass', icon: Icons.Compass, color: 'text-compass' },
+                { id: 'roadmap', name: 'Career Roadmap', icon: Icons.Map, color: 'text-roadmap' },
+                { id: 'radar', name: 'Opportunity Radar', icon: Icons.Radar, color: 'text-radar' },
+                { id: 'vault', name: 'Achievement Vault', icon: Icons.Vault, color: 'text-vault' },
+                { id: 'analyzer', name: 'FutureGap Analyzer', icon: Icons.Analyzer, color: 'text-analyzer' }
+            ];
+
+            return (
+                <div className="min-h-screen relative flex flex-col">
+                    {/* Navigation */}
+                    <nav className="bg-white/80 backdrop-blur-md sticky top-0 z-40 border-b border-gray-100 shadow-sm">
+                        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                            <div className="flex justify-between h-16">
+                                <div className="flex items-center cursor-pointer" onClick={() => setCurrentView('home')}>
+                                    <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-roadmap to-compass flex items-center justify-center text-white font-bold text-xl mr-2 shadow-md">O</div>
+                                    <span className="font-poppins font-bold text-xl text-gray-900 tracking-tight">OpporTune</span>
+                                </div>
+                                <div className="hidden md:flex space-x-6 items-center">
+                                    {navItems.map(item => (
+                                        <button 
+                                            key={item.id} 
+                                            onClick={() => setCurrentView(item.id)}
+                                            className={`flex items-center space-x-1 text-sm font-medium transition-colors hover:${item.color} ${currentView === item.id ? item.color : 'text-gray-500'}`}
+                                        >
+                                            <item.icon />
+                                            <span>{item.name}</span>
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                    </nav>
+
+                    {/* Main Content Area */}
+                    <main className={`flex-grow relative transition-all duration-300 ${sidePanel ? 'blur-sm brightness-95' : ''}`}>
+                        {currentView === 'home' && <Home setView={setCurrentView} />}
+                        {currentView === 'compass' && <CareerCompass setView={setCurrentView} />}
+                        {currentView === 'roadmap' && <CareerRoadmap setView={setCurrentView} setSidePanel={setSidePanel} />}
+                        {currentView === 'radar' && <OpportunityRadar />}
+                        {currentView === 'vault' && <AchievementVault />}
+                        {currentView === 'analyzer' && <FutureGapAnalyzer />}
+                    </main>
+
+                    {/* Slide-in Panel */}
+                    <SidePanel panel={sidePanel} close={() => setSidePanel(null)} />
+                </div>
+            );
+        };
+
+        /* --- VIEWS --- */
+
+        const Home = ({ setView }) => (
+            <div className="max-w-7xl mx-auto px-4 py-16 sm:px-6 lg:px-8">
+                <div className="text-center max-w-3xl mx-auto">
+                    <h1 className="text-5xl font-extrabold text-gray-900 tracking-tight mb-4 font-poppins">
+                        Turn Potential Into <span className="text-transparent bg-clip-text bg-gradient-to-r from-compass to-roadmap">Opportunity</span>
+                    </h1>
+                    <p className="text-lg text-gray-500 mb-8">
+                        OpporTune doesn't give generic advice. We analyze historical success patterns to show you exactly what successful people did at your age to reach their goals.
+                    </p>
+                    <div className="flex justify-center space-x-4 mb-16">
+                        <button onClick={() => setView('compass')} className="px-8 py-3 rounded-full bg-compass text-white font-medium shadow-lg shadow-blue-500/30 hover:bg-blue-600 transition-all transform hover:-translate-y-1">
+                            Take Career Compass Quiz
+                        </button>
+                        <button onClick={() => setView('compass')} className="px-8 py-3 rounded-full bg-white border border-gray-200 text-gray-700 font-medium hover:bg-gray-50 transition-all">
+                            Enter Interests Manually
+                        </button>
+                    </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                    <FeatureCard title="Career Compass" color="bg-compass" text="Discover careers mapped to your interests with real demand and salary data." onClick={() => setView('compass')} />
+                    <FeatureCard title="Career Roadmap" color="bg-roadmap" text="Explore the step-by-step academic pathway taken by historically successful candidates." onClick={() => setView('roadmap')} />
+                    <FeatureCard title="Opportunity Radar" color="bg-radar" text="Find historically proven competitions, internships, and hackathons for your path." onClick={() => setView('radar')} />
+                </div>
+            </div>
+        );
+
+        const FeatureCard = ({ title, color, text, onClick }) => (
+            <div onClick={onClick} className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 hover:shadow-xl transition-all cursor-pointer group">
+                <div className={`w-12 h-12 rounded-xl ${color} flex items-center justify-center text-white mb-4 shadow-md group-hover:scale-110 transition-transform`}>
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                </div>
+                <h3 className="text-xl font-bold text-gray-900 mb-2">{title}</h3>
+                <p className="text-gray-500 text-sm leading-relaxed">{text}</p>
+            </div>
+        );
+
+        const CareerCompass = ({ setView }) => {
+            const [showResults, setShowResults] = useState(false);
+            const[showLifeLens, setShowLifeLens] = useState(false);
+
+            if (showLifeLens) {
+                return (
+                    <div className="max-w-4xl mx-auto px-4 py-12">
+                        <button onClick={() => setShowLifeLens(false)} className="text-gray-500 mb-6 flex items-center hover:text-compass">
+                            ← Back to Careers
+                        </button>
+                        <div className="bg-white rounded-3xl p-8 shadow-xl border border-gray-100">
+                            <div className="flex items-center space-x-4 mb-8">
+                                <div className="w-16 h-16 rounded-2xl bg-compass text-white flex items-center justify-center text-2xl shadow-lg shadow-blue-500/30">🚀</div>
+                                <div>
+                                    <h2 className="text-2xl font-bold">Day in the life of an Aerospace Engineer</h2>
+                                    <p className="text-gray-500">Based on historical industry data</p>
+                                </div>
+                            </div>
+                            
+                            <div className="space-y-6 relative before:absolute before:inset-0 before:ml-5 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-transparent before:via-gray-300 before:to-transparent">
+                                {[
+                                    { time: "9:00 AM", task: "Review aerodynamic simulation data from overnight tests", skills:["Data Analysis", "Fluid Dynamics"] },
+                                    { time: "11:30 AM", task: "CAD modeling for new propulsion thruster component", skills: ["AutoCAD", "Thermodynamics"] },
+                                    { time: "2:00 PM", task: "Cross-functional team meeting with materials scientists", skills: ["Communication", "Project Management"] },
+                                    { time: "4:30 PM", task: "Run stress-test scenarios in virtual wind tunnel", skills: ["Python", "Simulation Software"] }
+                                ].map((item, i) => (
+                                    <div key={i} className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">
+                                        <div className="flex items-center justify-center w-10 h-10 rounded-full border-4 border-white bg-compass text-white shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 z-10">
+                                            <Icons.Clock />
+                                        </div>
+                                        <div className="w-[calc(100%-4rem)] md:w-[calc(50%-2.5rem)] bg-gray-50 p-4 rounded-xl shadow-sm border border-gray-100">
+                                            <div className="text-compass font-bold text-sm mb-1">{item.time}</div>
+                                            <div className="text-gray-800 font-medium mb-2">{item.task}</div>
+                                            <div className="flex space-x-2">
+                                                {item.skills.map((skill, j) => <span key={j} className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-md">{skill}</span>)}
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                );
+            }
+
+            return (
+                <div className="max-w-6xl mx-auto px-4 py-12">
+                    {!showResults ? (
+                        <div className="max-w-2xl mx-auto bg-white rounded-3xl p-8 shadow-sm border border-gray-100">
+                            <h2 className="text-3xl font-bold mb-6 font-poppins text-gray-900">Discover Your Path</h2>
+                            <div className="space-y-4 mb-8">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Favorite Subjects</label>
+                                    <input type="text" placeholder="e.g. Physics, Mathematics" className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-compass focus:border-transparent outline-none transition-all" />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Personal Interests</label>
+                                    <input type="text" placeholder="e.g. Space, Problem Solving" className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-compass focus:border-transparent outline-none transition-all" />
+                                </div>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">Expected Salary (₹)</label>
+                                        <select className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-compass focus:border-transparent outline-none bg-white">
+                                            <option>Flexible</option>
+                                            <option>10LPA+</option>
+                                            <option>20LPA+</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">Study Preference</label>
+                                        <select className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-compass focus:border-transparent outline-none bg-white">
+                                            <option>Domestic (India)</option>
+                                            <option>International</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                            <button onClick={() => setShowResults(true)} className="w-full py-4 rounded-xl bg-compass text-white font-bold text-lg shadow-lg shadow-blue-500/30 hover:bg-blue-600 transition-all">
+                                Generate Career Matches
+                            </button>
+                        </div>
+                    ) : (
+                        <div>
+                            <h2 className="text-3xl font-bold mb-8 font-poppins text-gray-900">Historical Matches for Your Profile</h2>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                {/* Career Card */}
+                                <div className="bg-white rounded-3xl p-8 shadow-md border border-gray-100 hover:shadow-xl transition-all relative overflow-hidden group">
+                                    <div className="absolute top-0 right-0 w-32 h-32 bg-blue-50 rounded-bl-full -z-10 transition-transform group-hover:scale-110"></div>
+                                    <div className="flex justify-between items-start mb-6">
+                                        <div>
+                                            <h3 className="text-2xl font-bold text-gray-900">Aerospace Engineer</h3>
+                                            <p className="text-compass font-medium text-sm mt-1">94% Match based on history</p>
+                                        </div>
+                                        <div className="w-12 h-12 rounded-xl bg-blue-100 text-compass flex items-center justify-center text-2xl">🚀</div>
+                                    </div>
+                                    
+                                    <div className="grid grid-cols-2 gap-4 mb-6">
+                                        <div className="bg-gray-50 p-3 rounded-xl">
+                                            <div className="text-xs text-gray-500 mb-1">Short Term Demand</div>
+                                            <div className="font-semibold text-green-600 flex items-center">Rising <span className="ml-1 text-lg">↑</span></div>
+                                        </div>
+                                        <div className="bg-gray-50 p-3 rounded-xl">
+                                            <div className="text-xs text-gray-500 mb-1">Long Term Scalability</div>
+                                            <div className="font-semibold text-green-600">High</div>
+                                        </div>
+                                    </div>
+
+                                    <div className="bg-blue-50/50 p-4 rounded-xl mb-6">
+                                        <div className="text-sm font-medium text-gray-700 mb-2">Historical Salary Range</div>
+                                        <div className="flex justify-between items-center text-sm border-b border-blue-100 pb-2 mb-2">
+                                            <span className="text-gray-500">India</span>
+                                            <span className="font-bold">₹8 LPA – ₹40 LPA</span>
+                                        </div>
+                                        <div className="flex justify-between items-center text-sm">
+                                            <span className="text-gray-500">Global</span>
+                                            <span className="font-bold">$80k – $160k</span>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex space-x-3">
+                                        <button onClick={() => setView('roadmap')} className="flex-1 py-3 rounded-xl bg-roadmap text-white font-semibold text-sm shadow-lg shadow-purple-500/30 hover:bg-purple-600 transition-all flex justify-center items-center">
+                                            View Career Roadmap <span className="ml-2">→</span>
+                                        </button>
+                                        <button onClick={() => setShowLifeLens(true)} className="px-4 py-3 rounded-xl bg-gray-100 text-gray-700 font-semibold text-sm hover:bg-gray-200 transition-all">
+                                            See a Day
+                                        </button>
+                                    </div>
+                                </div>
+                                {/* Another Dummy Card */}
+                                <div className="bg-white rounded-3xl p-8 shadow-sm border border-gray-100 opacity-70">
+                                    <h3 className="text-2xl font-bold text-gray-900 mb-2">Data Scientist</h3>
+                                    <p className="text-gray-500 text-sm">82% Match. Explore specific domain interests to refine.</p>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
+        const CareerRoadmap = ({ setView, setSidePanel }) => {
+            const[hoveredNode, setHoveredNode] = useState(null);
+
+            // Snaking Path Grid Layout (3 cols x 2 rows)
+            const nodes =[
+                { id: 'g8', title: 'Grade 8', subtitle: 'Build foundational skills', row: 1, col: 1, color: 'bg-indigo-100 text-indigo-800' },
+                { id: 'g9', title: 'Grade 9', subtitle: 'Explore interests', row: 1, col: 2, color: 'bg-cyan-100 text-cyan-800' },
+                { id: 'g10', title: 'Grade 10', subtitle: 'Start participating in competitions', row: 1, col: 3, color: 'bg-roadmap text-white animate-ripple', active: true,
+                  insight: "63% of successful engineering candidates began competitive problem solving by Grade 10.",
+                  activities:['Science Olympiads', 'Robotics Competitions', 'Hackathons'],
+                  exams: ['Joint Entrance Examination', 'National Eligibility cum Entrance Test'],
+                  unis: ['Indian Institute of Technology Delhi', 'Indian Institute of Science', 'Stanford University']
+                },
+                { id: 'g11', title: 'Grade 11', subtitle: 'Begin entrance exam preparation', row: 2, col: 3, color: 'bg-pink-100 text-pink-800' },
+                { id: 'g12', title: 'Grade 12', subtitle: 'Apply to universities', row: 2, col: 2, color: 'bg-orange-100 text-orange-800' },
+                { id: 'col', title: 'College', subtitle: 'Specialization & internships', row: 2, col: 1, color: 'bg-emerald-100 text-emerald-800' },
+            ];
+
+            const getNodeClasses = (node) => {
+                let base = `roadmap-node relative p-6 rounded-3xl cursor-pointer min-h-[160px] flex flex-col justify-center border-2 border-transparent ${node.color}`;
+                
+                if (!hoveredNode) return base;
+                if (hoveredNode === node.id) {
+                    // Hovered state: white background, original color as soft undertone
+                    let undertone = node.color.split(' ')[0].replace('100', '50').replace('bg-roadmap', 'bg-purple-50');
+                    return `${base} node-hovered bg-white ${undertone} border-${node.color.split(' ')[0].split('-')[1]}-200`;
+                }
+
+                // Calculate push directions
+                const hNode = nodes.find(n => n.id === hoveredNode);
+                if (hNode.row === node.row && hNode.col === node.col - 1) return `${base} node-pushed-right`;
+                if (hNode.row === node.row && hNode.col === node.col + 1) return `${base} node-pushed-left`;
+                if (hNode.col === node.col && hNode.row === node.row - 1) return `${base} node-pushed-down`;
+                if (hNode.col === node.col && hNode.row === node.row + 1) return `${base} node-pushed-up`;
+
+                return `${base} node-faded`;
+            };
+
+            return (
+                <div className="max-w-6xl mx-auto px-4 py-12 relative h-[80vh] flex flex-col justify-center">
+                    <div className="absolute top-0 left-0 w-full text-center">
+                        <h2 className="text-3xl font-bold font-poppins text-gray-900">Aerospace Engineering Pathway</h2>
+                        <p className="text-gray-500 mt-2">Historical roadmap based on 10,000+ successful profiles</p>
+                    </div>
+
+                    {/* SVG Connecting Path Background */}
+                    <div className="absolute inset-0 z-0 hidden md:block pointer-events-none mt-24">
+                        <svg width="100%" height="100%" preserveAspectRatio="none">
+                            <path d="M 16.6% 25% L 83.3% 25% A 50 50 0 0 1 83.3% 75% L 16.6% 75%" 
+                                  fill="none" stroke="#E2E8F0" strokeWidth="8" strokeLinecap="round" strokeLinejoin="round" />
+                            <path d="M 16.6% 25% L 83.3% 25% A 50 50 0 0 1 83.3% 75% L 16.6% 75%" 
+                                  fill="none" stroke="#8B5CF6" strokeWidth="8" strokeLinecap="round" strokeLinejoin="round" 
+                                  className="path-line animate-glow drop-shadow-lg" />
+                        </svg>
+                    </div>
+
+                    {/* Grid Layout */}
+                    <div className="relative z-10 grid grid-cols-1 md:grid-cols-3 gap-8 md:gap-x-12 md:gap-y-24 mt-20">
+                        {nodes.map((node) => (
+                            <div 
+                                key={node.id}
+                                className={getNodeClasses(node)}
+                                style={{ gridRow: node.row, gridColumn: node.col }}
+                                onMouseEnter={() => setHoveredNode(node.id)}
+                                onMouseLeave={() => setHoveredNode(null)}
+                            >
+                                {!hoveredNode || hoveredNode !== node.id ? (
+                                    <>
+                                        <h3 className="text-2xl font-bold mb-2 font-poppins">{node.title}</h3>
+                                        <p className="font-medium opacity-80">{node.subtitle}</p>
+                                    </>
+                                ) : (
+                                    <div className="w-full text-left animate-fade-in text-gray-900">
+                                        <h3 className="text-xl font-bold mb-1 text-roadmap">{node.title}</h3>
+                                        
+                                        {node.insight && (
+                                            <div className="bg-purple-50 p-3 rounded-lg border border-purple-100 text-sm text-purple-900 font-medium mb-3">
+                                                💡 {node.insight}
+                                            </div>
+                                        )}
+                                        
+                                        {node.activities && (
+                                            <div className="mb-3">
+                                                <div className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Recommended Activities</div>
+                                                <div className="flex flex-wrap gap-1">
+                                                    {node.activities.map(act => <span key={act} className="text-xs bg-gray-100 px-2 py-1 rounded-md">{act}</span>)}
+                                                </div>
+                                            </div>
+                                        )}
+                                        
+                                        <div className="grid grid-cols-2 gap-2 mb-4">
+                                            {node.exams && (
+                                                <div>
+                                                    <div className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Exams</div>
+                                                    {node.exams.map(ex => (
+                                                        <div key={ex} onClick={(e) => { e.stopPropagation(); setSidePanel({ type: 'exam', data: { name: ex } }); }} 
+                                                             className="text-xs text-blue-600 hover:text-blue-800 cursor-pointer underline decoration-blue-300 underline-offset-2 mb-1 truncate">
+                                                            {ex}
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                            {node.unis && (
+                                                <div>
+                                                    <div className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Universities</div>
+                                                    {node.unis.map(uni => (
+                                                        <div key={uni} onClick={(e) => { e.stopPropagation(); setSidePanel({ type: 'university', data: { name: uni } }); }} 
+                                                             className="text-xs text-blue-600 hover:text-blue-800 cursor-pointer underline decoration-blue-300 underline-offset-2 mb-1 truncate">
+                                                            {uni}
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        <button onClick={(e) => { e.stopPropagation(); setView('radar'); }} className="w-full py-2 bg-radar text-white text-sm font-bold rounded-xl shadow-md hover:bg-red-600 transition-colors">
+                                            Explore Opportunities
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            );
+        };
+
+        const SidePanel = ({ panel, close }) => {
+            if (!panel) return null;
+
+            const isExam = panel.type === 'exam';
+            
+            return (
+                <>
+                    <div className="fixed inset-0 z-40" onClick={close}></div>
+                    <div className="fixed top-0 right-0 h-full w-full md:w-[450px] bg-white shadow-2xl z-50 transform transition-transform duration-300 border-l border-gray-100 overflow-y-auto hide-scrollbar">
+                        <div className="p-6">
+                            <div className="flex justify-between items-center mb-6">
+                                <h2 className="text-2xl font-bold font-poppins text-gray-900">{panel.data.name}</h2>
+                                <button onClick={close} className="p-2 bg-gray-100 rounded-full hover:bg-gray-200"><Icons.X /></button>
+                            </div>
+
+                            <div className="bg-amber-50 border-l-4 border-amber-400 p-4 rounded-r-lg mb-8">
+                                <p className="text-sm text-amber-800 font-medium">Historical Insight: Information displayed is based on historical patterns of successful applicants, not guaranteed future requirements.</p>
+                            </div>
+
+                            {isExam ? (
+                                <div className="space-y-8">
+                                    <div>
+                                        <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-3">Overview</h3>
+                                        <div className="flex items-center space-x-2 text-sm text-gray-700 bg-gray-50 p-3 rounded-lg">
+                                            <span className="font-semibold text-gray-900">Difficulty Level:</span>
+                                            <span className="px-2 py-1 bg-red-100 text-red-800 rounded text-xs font-bold">Extremely High</span>
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-3">Historical Statistics (Last 5 Years)</h3>
+                                        <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
+                                            {/* Simple CSS Bar Chart Simulation */}
+                                            <div className="flex items-end h-32 gap-2 mb-2">
+                                                {[10, 11, 11.5, 12, 14].map((val, i) => (
+                                                    <div key={i} className="flex-1 flex flex-col justify-end group relative">
+                                                        <div className="w-full bg-roadmap rounded-t-md chart-bar" style={{ height: `${(val/15)*100}%` }}></div>
+                                                        <div className="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 text-xs font-bold bg-gray-800 text-white px-2 py-1 rounded">{val}L</div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                            <div className="flex justify-between text-xs text-gray-500 mt-2">
+                                                <span>2020</span><span>2021</span><span>2022</span><span>2023</span><span>2024</span>
+                                            </div>
+                                            <div className="mt-4 grid grid-cols-2 gap-4 text-center">
+                                                <div className="bg-gray-50 p-2 rounded-lg"><div className="text-lg font-bold text-gray-900">1.4M+</div><div className="text-xs text-gray-500">Applicants/yr</div></div>
+                                                <div className="bg-gray-50 p-2 rounded-lg"><div className="text-lg font-bold text-green-600">~1.5%</div><div className="text-xs text-gray-500">Success Rate</div></div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-3">Historically Used Prep Resources</h3>
+                                        <div className="space-y-4">
+                                            <div>
+                                                <div className="text-xs font-semibold text-gray-400 mb-2">Online Platforms</div>
+                                                <div className="flex flex-wrap gap-2">
+                                                    {['Physics Wallah', 'Unacademy', "BYJU'S"].map(r => <span key={r} className="px-3 py-1.5 bg-blue-50 text-blue-700 text-sm rounded-lg font-medium border border-blue-100">{r}</span>)}
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <div className="text-xs font-semibold text-gray-400 mb-2">Coaching Institutes</div>
+                                                <div className="flex flex-wrap gap-2">
+                                                    {['Allen Career Institute', 'FIITJEE'].map(r => <span key={r} className="px-3 py-1.5 bg-purple-50 text-purple-700 text-sm rounded-lg font-medium border border-purple-100">{r}</span>)}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="space-y-6">
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div className="bg-gray-50 p-4 rounded-xl border border-gray-100 text-center">
+                                            <div className="text-3xl font-bold text-roadmap mb-1">12%</div>
+                                            <div className="text-xs text-gray-500 font-medium">Acceptance Rate</div>
+                                        </div>
+                                        <div className="bg-gray-50 p-4 rounded-xl border border-gray-100 text-center">
+                                            <div className="text-xl font-bold text-gray-900 mb-1">₹2.5L</div>
+                                            <div className="text-xs text-gray-500 font-medium">Annual Fees Avg</div>
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-3">Required Entrance Exams</h3>
+                                        <div className="bg-red-50 text-red-800 px-4 py-3 rounded-xl border border-red-100 font-medium text-sm">
+                                            JEE Advanced (Rank &lt; 5000 typical)
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-3">Typical Successful Profile</h3>
+                                        <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm space-y-3 text-sm">
+                                            <div className="flex justify-between border-b pb-2"><span className="text-gray-500">Board Grades</span><span className="font-bold">95%+</span></div>
+                                            <div>
+                                                <span className="text-gray-500 block mb-1">Common Extracurriculars</span>
+                                                <ul className="list-disc pl-5 font-medium text-gray-800 space-y-1">
+                                                    <li>National Science Olympiad Scholar</li>
+                                                    <li>Robotics Club Leadership</li>
+                                                    <li>Published minor research papers</li>
+                                                </ul>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </>
+            );
+        };
+
+        const OpportunityRadar = () => {
+            const opps =[
+                { id: 1, title: 'National Science Olympiad', type: 'Olympiad', grade: '8-12', deadline: 'Oct 15', elig: 'Grade 8+', skills: ['Physics', 'Problem Solving'] },
+                { id: 2, title: 'NASA Space Apps Hackathon', type: 'Hackathon', grade: '9-12', deadline: 'Nov 02', elig: 'Open', skills: ['Coding', 'Innovation'] },
+                { id: 3, title: 'ISRO Student Innovator Program', type: 'Internship', grade: '11-12', deadline: 'Dec 01', elig: 'Science Stream, 90%+', skills:['Research', 'Physics'] }
+            ];
+
+            return (
+                <div className="max-w-7xl mx-auto px-4 py-12">
+                    <div className="flex items-end justify-between mb-8 border-b border-gray-200 pb-6">
+                        <div>
+                            <h2 className="text-3xl font-bold font-poppins text-gray-900 flex items-center">
+                                <span className="w-4 h-4 rounded-full bg-radar mr-3 animate-pulse"></span> Opportunity Radar
+                            </h2>
+                            <p className="text-gray-500 mt-1">Historically relevant opportunities to build your profile.</p>
+                        </div>
+                        <div className="flex space-x-2">
+                            <select className="px-4 py-2 rounded-lg border border-gray-200 bg-white text-sm font-medium"><option>Grade 10</option></select>
+                            <select className="px-4 py-2 rounded-lg border border-gray-200 bg-white text-sm font-medium"><option>Aerospace</option></select>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {opps.map(opp => (
+                            <div key={opp.id} className="bg-white border border-red-100 rounded-2xl p-6 shadow-sm hover:shadow-lg transition-all hover:border-red-300 group">
+                                <div className="flex justify-between items-start mb-4">
+                                    <span className="px-3 py-1 bg-red-50 text-radar text-xs font-bold uppercase tracking-wider rounded-lg">{opp.type}</span>
+                                    <span className="text-xs font-bold text-gray-500 bg-gray-100 px-2 py-1 rounded">Grades {opp.grade}</span>
+                                </div>
+                                <h3 className="text-xl font-bold text-gray-900 mb-2 group-hover:text-radar transition-colors">{opp.title}</h3>
+                                <div className="space-y-2 mb-6">
+                                    <div className="flex justify-between text-sm"><span className="text-gray-500">Deadline:</span><span className="font-semibold text-gray-900">{opp.deadline}</span></div>
+                                    <div className="flex justify-between text-sm"><span className="text-gray-500">Eligibility:</span><span className="font-semibold text-gray-900">{opp.elig}</span></div>
+                                </div>
+                                <div className="flex flex-wrap gap-1 mb-6">
+                                    {opp.skills.map(s => <span key={s} className="text-xs bg-gray-50 text-gray-600 px-2 py-1 rounded border border-gray-200">{s}</span>)}
+                                </div>
+                                <button className="w-full py-2.5 rounded-xl border-2 border-radar text-radar font-bold hover:bg-radar hover:text-white transition-colors">
+                                    Add to Roadmap Plan
+                                </button>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            );
+        };
+
+        const AchievementVault = () => (
+            <div className="max-w-6xl mx-auto px-4 py-12">
+                <div className="flex justify-between items-center mb-8">
+                    <h2 className="text-3xl font-bold font-poppins text-gray-900">Achievement Vault</h2>
+                    <button className="px-6 py-3 bg-vault text-white font-bold rounded-xl shadow-lg shadow-green-500/30 hover:bg-green-600 transition-transform transform hover:-translate-y-1 flex items-center">
+                        <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                        Build Resume PDF
+                    </button>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                    {/* Progress Tracker */}
+                    <div className="lg:col-span-1 bg-white rounded-3xl p-6 shadow-sm border border-gray-100">
+                        <div className="text-center mb-6">
+                            <div className="text-sm text-gray-500 font-bold uppercase tracking-wider mb-1">Career Goal</div>
+                            <div className="text-xl font-bold text-gray-900">Aerospace Engineer</div>
+                        </div>
+                        
+                        <div className="relative w-40 h-40 mx-auto mb-6 flex items-center justify-center">
+                            <svg className="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
+                                <path className="text-gray-100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="currentColor" strokeWidth="3" strokeDasharray="100, 100" />
+                                <path className="text-vault" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="currentColor" strokeWidth="3" strokeDasharray="68, 100" />
+                            </svg>
+                            <div className="absolute text-center">
+                                <div className="text-3xl font-extrabold text-gray-900">68%</div>
+                                <div className="text-xs text-gray-500 font-medium">Readiness</div>
+                            </div>
+                        </div>
+
+                        <div className="space-y-4">
+                            <ProgressBar label="Academic Prep" value="85%" />
+                            <ProgressBar label="Competitions" value="40%" />
+                            <ProgressBar label="Projects" value="60%" />
+                            <ProgressBar label="Extracurriculars" value="75%" />
+                        </div>
+                    </div>
+
+                    {/* Upload Area & List */}
+                    <div className="lg:col-span-2 space-y-6">
+                        <div className="bg-green-50 border-2 border-dashed border-vault rounded-3xl p-8 text-center hover:bg-green-100 transition-colors cursor-pointer">
+                            <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mx-auto mb-4 shadow-sm text-vault">
+                                <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
+                            </div>
+                            <h3 className="text-lg font-bold text-gray-900 mb-1">Upload Achievement</h3>
+                            <p className="text-sm text-gray-500">Drag & drop certificates, project links, or award letters here.</p>
+                            <p className="text-xs text-vault font-semibold mt-2">AI will automatically categorize your upload.</p>
+                        </div>
+
+                        <h3 className="font-bold text-lg text-gray-900 mt-8 mb-4">Verified Vault Items</h3>
+                        <div className="space-y-3">
+                            <VaultItem icon="🏆" title="Regional Science Fair Winner" category="Competitions" date="Oct 2025" />
+                            <VaultItem icon="💻" title="Autonomous Drone Python Script" category="Projects" date="Aug 2025" />
+                            <VaultItem icon="📜" title="Grade 10 Board Results (92%)" category="Academic" date="May 2025" />
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
+
+        const ProgressBar = ({ label, value }) => (
+            <div>
+                <div className="flex justify-between text-sm mb-1"><span className="font-medium text-gray-700">{label}</span><span className="font-bold text-vault">{value}</span></div>
+                <div className="w-full bg-gray-100 rounded-full h-2.5"><div className="bg-vault h-2.5 rounded-full" style={{ width: value }}></div></div>
+            </div>
+        );
+
+        const VaultItem = ({ icon, title, category, date }) => (
+            <div className="bg-white p-4 rounded-xl border border-gray-100 flex items-center justify-between shadow-sm hover:shadow-md transition-shadow">
+                <div className="flex items-center space-x-4">
+                    <div className="text-2xl">{icon}</div>
+                    <div>
+                        <div className="font-bold text-gray-900">{title}</div>
+                        <div className="text-xs font-semibold text-vault uppercase tracking-wider">{category}</div>
+                    </div>
+                </div>
+                <div className="text-sm text-gray-400 font-medium">{date}</div>
+            </div>
+        );
+
+        const FutureGapAnalyzer = () => (
+            <div className="max-w-5xl mx-auto px-4 py-12">
+                <div className="text-center mb-10">
+                    <h2 className="text-3xl font-bold font-poppins text-gray-900">FutureGap Analyzer</h2>
+                    <p className="text-gray-500 mt-2">Compare your profile against historical success patterns.</p>
+                </div>
+
+                <div className="bg-white rounded-3xl p-8 shadow-md border border-gray-100">
+                    <div className="flex justify-center mb-8 space-x-4">
+                        <button className="px-6 py-2 bg-analyzer text-white font-bold rounded-lg shadow">Analyze Target College</button>
+                        <button className="px-6 py-2 bg-gray-100 text-gray-600 font-bold rounded-lg hover:bg-gray-200 transition-colors">Analyze Target Career</button>
+                    </div>
+
+                    <div className="mb-6 flex justify-center items-center space-x-4 text-sm font-bold">
+                        <div className="flex items-center"><span className="w-3 h-3 rounded-full bg-analyzer mr-2"></span> You</div>
+                        <div className="flex items-center"><span className="w-3 h-3 rounded-full bg-gray-300 mr-2"></span> Typical Admitted (Historically)</div>
+                    </div>
+
+                    {/* CSS Grouped Bar Chart */}
+                    <div className="h-64 border-b border-l border-gray-200 flex items-end justify-around pb-0 pt-4 px-4">
+                        <GapBar label="Grades" user={87} target={94} />
+                        <GapBar label="Competitions" user={40} target={80} />
+                        <GapBar label="Projects" user={60} target={70} />
+                        <GapBar label="Extracurriculars" user={85} target={60} />
+                    </div>
+
+                    <div className="mt-8 bg-orange-50 border-l-4 border-analyzer p-4 rounded-r-lg">
+                        <h4 className="font-bold text-orange-900 mb-1">Data-Driven Insight</h4>
+                        <p className="text-sm text-orange-800">Your extracurriculars exceed historical averages. However, historically successful candidates for this path had significantly more competition participation by this stage. Consider checking Opportunity Radar for upcoming Hackathons.</p>
+                    </div>
+                </div>
+            </div>
+        );
+
+        const GapBar = ({ label, user, target }) => (
+            <div className="flex flex-col items-center group">
+                <div className="flex items-end space-x-2 h-48 w-20">
+                    <div className="w-8 bg-analyzer rounded-t-md relative chart-bar group-hover:brightness-110" style={{ height: `${user}%` }}>
+                        <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-xs font-bold text-analyzer">{user}%</span>
+                    </div>
+                    <div className="w-8 bg-gray-300 rounded-t-md relative chart-bar" style={{ height: `${target}%` }}>
+                        <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-xs font-bold text-gray-500">{target}%</span>
+                    </div>
+                </div>
+                <div className="mt-4 text-sm font-semibold text-gray-600">{label}</div>
+            </div>
+        );
+
+        // Render App
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
